@@ -1,0 +1,5 @@
+{
+    "dataset_name_test_1": "msmarco-passage/dev/small",
+    "dataset_name_test_2": "msmarco-passage/dev/2",
+    "dataset_name_test_3": "msmarco-passage/eval/small"
+}
