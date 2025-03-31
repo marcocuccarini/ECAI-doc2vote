@@ -3,63 +3,129 @@ import pandas as pd
 from datasets import load_dataset
 from collections import defaultdict
 
+
 class Dataset:
+
+
     def __init__(self, dataset_name="msmarco-passage/dev/small"):
+
         # Carica il dataset principale da ir_datasets
         dataset = ir_datasets.load(dataset_name)
 
         # Dizionari per i passaggi e le query
+
+        # id_passage->passage
         self.passages = {doc.doc_id: doc.text for doc in dataset.docs_iter()}
+        # id_query->query
         self.query = {query.query_id: query.text for query in dataset.queries_iter()}
 
-        # Carica il file query-passage
+        # id_query -> list of relevat pasagges [id_passage1, .....]
+
         self.query_passage = self.get_query_passage(dataset)
 
-    @staticmethod
-    def mean_reciprocal_rank(ranks):
-        """
-        Compute Mean Reciprocal Rank (MRR) considering only ranks within top 10 (RR@10)
-        :param ranks: List of ranks where the first relevant result appears
-        :return: MRR score considering RR@10
-        """
-        if not ranks:
-            return 0.0  # Handle empty input
+      
+
+
+    def list_raduce_passage(self):
+
+        list_passage_reduce=[]
+
+
+        for i in self.query_passage.keys():
+
+            for j in self.query_passage[i]:
+
+
+                list_passage_reduce.append(j)
+
+             
+
+        self.list_passage_reduce=list_passage_reduce
+
+
+    def raduce_passage(self):
+
+    #Function that reduce the number of passage only the th relevant one of the query selected
+
+        reduce_passages={}
+        reduce_passages_aug={}
+
+        for i in self.query_passage.keys():
+
+            for j in self.query_passage[i]:
+
+
+                reduce_passages[j]=self.passages[j]
+
+                reduce_passages_aug[j]=self.passages_augmented[j]
+
+        self.reduce_passages =  reduce_passages
+        self.reduce_passages_augmented = reduce_passages_aug
+
+
+
+
+    #This function add to the object dataset the augmented passage to the 
+
+    def add_augmented_file(self, path="castorini/msmarco_v1_passage_doc2query-t5_expansions"):
+
+        #dictionary of passage augmeted
+
+        # id_passage -> list of reformulate passage [passage1refomulate1, passage1refomulate2, ...]
         
-        filtered_ranks = [rank for rank in ranks if rank <= 10]  # Consider only ranks <= 10
-        if not filtered_ranks:
-            return 0.0  # If no relevant result appears in top 10, return 0
-        
-        return sum(1.0 / rank for rank in filtered_ranks) / len(filtered_ranks)
+        #id_passage -> text_passage1+text_passage1refomualte1+text_passage1refomualte2+.......
 
-    def evaluate_ir_system(self, query_passage_predicted, k=10):
-        """
-        Evaluates an IR system based on query-passage predictions.
-        :param query_passage_predicted: Dictionary of predicted passages for each query
-        :param k: Top-k ranking consideration
-        """
-
-        list_rank = []
-        dict_rank = {}
-
-        for query_id, relevant_docs in self.query_passage.items():
-            list_index = []
-
-            if query_id in query_passage_predicted:
-                predicted_docs = query_passage_predicted[query_id]
-
-                for relevant_doc in relevant_docs:
-                    if relevant_doc in predicted_docs:
-                        list_index.append(predicted_docs.index(relevant_doc))
-                        
-            # If no relevant document is found, assign a rank of 11 (out of top 10)
-            dict_rank[query_id] = min(list_index) if list_index else k+1
-
-        list_rank = list(dict_rank.values())
+        dataset1 = load_dataset(path, split="train")
+        filtered_dataset = dataset1.filter(lambda item: item["id"] in self.list_passage_reduce)
+        self.passages_augmented = {item["id"]: item["predicted_queries"] for item in filtered_dataset}
 
 
-        print(f"Top 10 ranks: {list_rank}")
-        mrr_score = self.mean_reciprocal_rank(list_rank)
-        print(f"MRR: {mrr_score:.4f}")
+    def passage_creation_vote(self,aug_num):
+
+        #function that usnify each passage to the realtive genrated query, like in the paper doc2vec
+
+        list_of_value=[]
+
+        for i in self.reduce_passages.keys():
+
+            list_of_value.append([i,self.reduce_passages[i]])
+
+            for j in self.reduce_passages_augmented[i][:aug_num]:
+
+                list_of_value.append([i, j])
+
+        self.list_doc2vote=list_of_value
+
+
+
+
+
+
+
+
+
+
+            
+
+
+
+
+    def join_passage_base_aug(self, aug_sel):
+
+        #function that usnify each passage to the realtive genrated query, like in the paper doc2vec
+
+        dict_temp={}
+
+        for i in self.reduce_passages.keys():
+
+            joined_string = " ".join(map(str, self.reduce_passages_augmented[i][:aug_sel]))
+
+            dict_temp[i]=self.reduce_passages[i]+" "+ joined_string
+
+        self.reduce_passages_base_aug = dict_temp
+
+
+
 
     def get_query_passage(self, dataset):
         """
@@ -72,20 +138,9 @@ class Dataset:
 
         return dict(query_relevance)
 
-    def get_passage_augmentation(self, path="castorini/msmarco_v1_passage_doc2query-t5_expansions"):
-        """
-        Loads passage augmentation data and maps document IDs to reformulated queries.
-        """
-        try:
-            dataset = load_dataset(path)
-            passage_expansions_dict = {item["id"]: item["predicted_queries"] for item in dataset["train"]}
-            return passage_expansions_dict
-        except Exception as e:
-            print(f"Error loading dataset: {e}")
-            return {}
+   
 
-    def eval_solution(self, query_passage_predicted):
-        """
-        Placeholder function to evaluate a solution.
-        """
-        return "Evaluation logic not implemented yet"
+
+
+
+
